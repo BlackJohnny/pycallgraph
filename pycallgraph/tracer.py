@@ -81,6 +81,9 @@ class TraceProcessor(Thread):
         # Current call stack
         self.call_stack = ['__main__']
 
+        # Steps to the parent function
+        self.call_stack_back_steps = -1
+
         # Counters for each function
         self.func_count = defaultdict(int)
         self.func_count_max = 0
@@ -210,9 +213,12 @@ class TraceProcessor(Thread):
             if keep:
 
                 if self.call_stack:
-                    src_func = self.call_stack[-1]
+                    src_func = self.call_stack[self.call_stack_back_steps]
                 else:
                     src_func = None
+
+                # Reset back steps
+                self.call_stack_back_steps = -1
 
                 self.call_dict[src_func][full_name] += 1
 
@@ -229,6 +235,8 @@ class TraceProcessor(Thread):
                     self.call_stack_memory_out.append([full_name, memory])
 
             else:
+                # Increment back steps
+                self.call_stack_back_steps = self.call_stack_back_steps - 1
                 self.call_stack.append('')
                 self.call_stack_timer.append(None)
 
@@ -238,6 +246,9 @@ class TraceProcessor(Thread):
 
             if self.call_stack:
                 full_name = self.call_stack.pop(-1)
+                
+                # Reset back steps
+                self.call_stack_back_steps = -1
 
                 if self.call_stack_timer:
                     start_time = self.call_stack_timer.pop(-1)
