@@ -7,6 +7,7 @@ import time
 from distutils import sysconfig
 from collections import defaultdict
 from threading import Thread
+
 try:
     from Queue import Queue, Empty
 except ImportError:
@@ -16,7 +17,6 @@ from .util import Util
 
 
 class SyncronousTracer(object):
-
     def __init__(self, outputs, config):
         self.processor = TraceProcessor(outputs, config)
         self.config = config
@@ -41,7 +41,6 @@ class SyncronousTracer(object):
 
 
 class AsyncronousTracer(SyncronousTracer):
-
     def start(self):
         self.processor.start()
         SyncronousTracer.start(self)
@@ -82,7 +81,8 @@ class TraceProcessor(Thread):
         self.call_stack = ['__main__']
 
         # Steps to the parent function
-        self.call_stack_back_steps = -1
+        self.call_stack_back_steps = []
+        self.call_stack_back_steps.append(1)
 
         # Counters for each function
         self.func_count = defaultdict(int)
@@ -161,6 +161,7 @@ class TraceProcessor(Thread):
                 )
 
         if event == 'call':
+
             keep = True
             code = frame.f_code
 
@@ -213,12 +214,12 @@ class TraceProcessor(Thread):
             if keep:
 
                 if self.call_stack:
-                    src_func = self.call_stack[self.call_stack_back_steps]
+                    src_func = self.call_stack[-self.call_stack_back_steps[-1]]
                 else:
                     src_func = None
 
-                # Reset back steps
-                self.call_stack_back_steps = -1
+                # Start counting forward steps
+                self.call_stack_back_steps.append(1)
 
                 self.call_dict[src_func][full_name] += 1
 
@@ -236,7 +237,7 @@ class TraceProcessor(Thread):
 
             else:
                 # Increment back steps
-                self.call_stack_back_steps = self.call_stack_back_steps - 1
+                self.call_stack_back_steps[-1] += 1
                 self.call_stack.append('')
                 self.call_stack_timer.append(None)
 
@@ -246,9 +247,12 @@ class TraceProcessor(Thread):
 
             if self.call_stack:
                 full_name = self.call_stack.pop(-1)
-                
+
                 # Reset back steps
-                self.call_stack_back_steps = -1
+                self.call_stack_back_steps[-1] -= 1
+                # If there are no steps to go back we remove the element
+                if self.call_stack_back_steps[-1] == 0:
+                    self.call_stack_back_steps.pop(-1)
 
                 if self.call_stack_timer:
                     start_time = self.call_stack_timer.pop(-1)
@@ -382,5 +386,6 @@ def simple_memoize(callable_object):
         return cache[rest]
 
     return wrapper
+
 
 inspect.getmodule = simple_memoize(inspect.getmodule)
